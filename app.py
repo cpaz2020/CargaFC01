@@ -1,53 +1,59 @@
 import streamlit as st
-import fitz
+import fitz  # PyMuPDF
 import re
 import json
 
-st.title("🚀 FHAB - Sistema de Alta Velocidad")
+st.set_page_config(page_title="FHAB - AutoCarga Pro", layout="centered", page_icon="🚀")
 
-uploaded_file = st.file_uploader("Subir Factura", type="pdf")
+st.title("🚀 Sistema de Extracción FHAB")
+st.write("Sube tu factura para copiar los datos y autocompletar el formulario.")
+
+uploaded_file = st.file_uploader("Subir Factura PDF", type="pdf")
 
 if uploaded_file is not None:
-    with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
-        texto = "".join([page.get_text() for page in doc])
+    try:
+        # 1. Leer el PDF
+        with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
+            texto = ""
+            for page in doc:
+                texto += page.get_text()
+
+        # 2. Extraer datos con Regex (Lógica mejorada)
+        cuit_match = re.search(r'CUIT[:\s]*([\d\-]+)', texto)
+        cuit_val = "".join(re.findall(r'\d+', cuit_match.group(1)))[:11] if cuit_match else ""
+
+        fecha_match = re.search(r'(\d{2})/(\d{2})/(\d{4})', texto)
+        fecha_val_iso = f"{fecha_match.group(3)}-{fecha_match.group(2)}-{fecha_match.group(1)}" if fecha_match else ""
+
+        comp_match = re.search(r'(\d{4,5})\s?-\s?(\d{8})', texto)
+        ptovta = comp_match.group(1) if comp_match else ""
+        nrocomp = comp_match.group(2) if comp_match else ""
+
+        total_match = re.search(r'(?:Total|Importe Total):\s*\$?\s*([\d\.,]+)', texto, re.IGNORECASE)
+        total_val = total_match.group(1).replace('.', '').replace(',', '.') if total_match else ""
+
+        # 3. Preparar el JSON para Tampermonkey
+        data_factura = {
+            "cuit": cuit_val,
+            "fecha_iso": fecha_val_iso,
+            "ptovta": ptovta,
+            "nro": nrocomp,
+            "total": total_val
+        }
+
+        st.success("✅ Factura procesada correctamente")
+
+        # --- INTERFAZ DE PASOS ---
+        st.subheader("Paso 1: Copia los datos al portapapeles")
+        # Mostramos el JSON en un bloque de código para que el usuario use el botón "Copy" de Streamlit
+        st.code(json.dumps(data_factura), language="json")
         
-# ... (dentro de tu bloque 'if uploaded_file is not None')
+        st.info("Haz clic en el icono de copiar (arriba a la derecha del cuadro negro) antes de continuar.")
 
-# 1. Preparar el diccionario de datos
-data_a_copiar = {
-    "cuit": cuit_val,
-    "fecha_iso": "-".join(fecha_val.split("/")[::-1]) if fecha_val else "", # Convierte DD/MM/AAAA a YYYY-MM-DD
-    "ptovta": ptovta,
-    "nro": nrocomp,
-    "total": total_val.replace('.', '').replace(',', '.') # Formato decimal estándar
-}
+        st.subheader("Paso 2: Ve al formulario y presiona el botón naranja")
+        st.link_button("Ir al Formulario de Barceló ↗️", "https://validaciones.barcelo.edu.ar/subircomprobantes/index.php")
 
-# 2. Mostrar el JSON para que el usuario lo copie manualmente (es lo más seguro)
-st.subheader("Paso 1: Copia estos datos")
-st.code(json.dumps(data_a_copiar), language="json")
-
-st.subheader("Paso 2: Ve al formulario")
-st.link_button("Ir a Barceló ↗️", "https://validaciones.barcelo.edu.ar/subircomprobantes/index.php")
-    # Extracción
-    cuit = "".join(re.findall(r'\d+', re.search(r'CUIT[:\s]*[\d\-]+', texto).group(0)))[:11]
-    fecha = re.search(r'(\d{2})/(\d{2})/(\d{4})', texto)
-    comp = re.search(r'(\d{4,5})\s?-\s?(\d{8})', texto)
-    total = re.search(r'(?:Total|Importe Total):\s*\$?\s*([\d\.,]+)', texto, re.IGNORECASE)
-
-    # Preparar JSON para el Portapapeles
-    data_factura = {
-        "cuit": cuit,
-        "fecha_iso": f"{fecha.group(3)}-{fecha.group(2)}-{fecha.group(1)}" if fecha else "",
-        "ptovta": comp.group(1) if comp else "",
-        "nro": comp.group(2) if comp else "",
-        "total": total.group(1).replace('.', '').replace(',', '.') if total else ""
-    }
-
-    st.success("✅ Factura procesada")
-    
-    # Botón mágico de copiado
-    if st.button("📋 1. COPIAR DATOS PARA EL NAVEGADOR"):
-        st.write(f'<script>navigator.clipboard.writeText({json.dumps(json.dumps(data_factura))})</script>', unsafe_allow_html=True)
-        st.info("¡Datos copiados al portapapeles!")
-
-    st.link_button("🚀 2. IR AL FORMULARIO Y PEGAR", "https://validaciones.barcelo.edu.ar/subircomprobantes/index.php", type="primary")
+    except Exception as e:
+        st.error(f"Error al procesar: {e}")
+else:
+    st.info("Esperando que subas un archivo PDF...")
