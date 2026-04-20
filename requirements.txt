@@ -1,3 +1,2 @@
 pymupdf
 streamlit
-requests
