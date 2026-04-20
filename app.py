@@ -1,68 +1,40 @@
-import streamlit as st
-import fitz  # PyMuPDF
-import re
-import urllib.parse
+// ==UserScript==
+// @name         Auto-Carga Facturas FHAB
+// @namespace    http://tampermonkey.net/
+// @version      1.0
+// @description  Pega automáticamente los datos de la factura en el formulario de Barceló
+// @author       FHAB
+// @match        https://validaciones.barcelo.edu.ar/subircomprobantes/index.php*
+// @grant        none
+// ==/UserScript==
 
-st.set_page_config(page_title="FHAB - AutoCarga", layout="centered", page_icon="🚀")
+(function() {
+    'use strict';
 
-st.title("🚀 Extractor y Auto-Carga FHAB")
-st.write("Sube la factura y presiona el botón para intentar el auto-completado.")
+    // Función para obtener datos del "Portapapeles Inteligente"
+    window.addEventListener('load', function() {
+        const btn = document.createElement('button');
+        btn.innerHTML = '✨ Pegar Datos de FHAB';
+        btn.style = "position:fixed;top:10px;right:10px;z-index:9999;padding:10px;background:#28a745;color:white;border:none;border-radius:5px;cursor:pointer;";
+        document.body.appendChild(btn);
 
-uploaded_file = st.file_uploader("Subir Factura PDF", type="pdf")
+        btn.onclick = async function() {
+            try {
+                const text = await navigator.clipboard.readText();
+                const data = JSON.parse(text);
 
-if uploaded_file is not None:
-    try:
-        with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
-            texto = ""
-            for page in doc:
-                texto += page.get_text()
-        
-        # --- EXTRACCIÓN DE DATOS ---
-        cuit_raw = re.search(r'CUIT[:\s]*(\d{2}-?\d{8}-?\d{1})', texto)
-        cuit_val = re.sub(r'\D', '', cuit_raw.group(1)) if cuit_raw else ""
+                // Mapeo de campos basado en la imagen que enviaste
+                // Nota: Los IDs ('cuit', 'fecha', etc) pueden variar según el HTML real
+                document.querySelector('input[placeholder*="11 dígitos"]').value = data.cuit;
+                document.querySelector('input[type="date"]').value = data.fecha_iso; // Formato YYYY-MM-DD
+                document.querySelector('input[placeholder*="Ej: 5"]').value = data.ptovta;
+                document.querySelector('input[placeholder*="Ej: 12345"]').value = data.nro;
+                document.querySelector('input[placeholder*="12500.50"]').value = data.total;
 
-        fecha_match = re.search(r'(\d{2}/\d{2}/\d{4})', texto)
-        fecha_val = fecha_match.group(1) if fecha_match else ""
-
-        comp_match = re.search(r'(\d{4,5})\s?-\s?(\d{8})', texto)
-        ptovta = comp_match.group(1) if comp_match else ""
-        nrocomp = comp_match.group(2) if comp_match else ""
-
-        total_match = re.search(r'(?:Total|Importe Total):\s*\$?\s*([\d\.,]+)', texto, re.IGNORECASE)
-        total_val = total_match.group(1) if total_match else ""
-
-        # --- CONSTRUCCIÓN DE URL PARA AUTOCOMPLETE ---
-        # Mapeamos los campos extraídos a posibles nombres de variables del formulario
-        params = {
-            "cuit": cuit_val,
-            "fecha": fecha_val,
-            "ptovta": ptovta,
-            "nro": nrocomp,
-            "importe": total_val
-        }
-        url_base = "https://validaciones.barcelo.edu.ar/subircomprobantes/index.php"
-        url_auto = f"{url_base}?{urllib.parse.urlencode(params)}"
-
-        st.success("✅ Datos listos")
-
-        # --- VISTA PREVIA ---
-        col1, col2 = st.columns(2)
-        with col1:
-            st.text_input("CUIT", value=cuit_val)
-            st.text_input("Fecha", value=fecha_val)
-        with col2:
-            st.text_input("Punto Venta", value=ptovta)
-            st.text_input("Número", value=nrocomp)
-        
-        st.text_input("Total", value=total_val)
-
-        st.divider()
-
-        # --- BOTÓN DE AUTO-COMPLETADO ---
-        st.warning("⚠️ El auto-completado depende de los permisos del sitio de destino.")
-        st.link_button("🔥 AUTO-COMPLETAR Y REGISTRAR", url_auto, type="primary")
-        
-        st.caption("Si los campos no se llenan solos, usa la función de copiar en cada recuadro.")
-
-    except Exception as e:
-        st.error(f"Error: {e}")
+                alert('¡Datos cargados! Por favor revisa y adjunta el PDF.');
+            } catch (err) {
+                alert('Primero copia los datos desde la App de FHAB');
+            }
+        };
+    });
+})();
