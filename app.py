@@ -10,7 +10,24 @@ uploaded_file = st.file_uploader("Subir Factura", type="pdf")
 if uploaded_file is not None:
     with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
         texto = "".join([page.get_text() for page in doc])
+        
+# ... (dentro de tu bloque 'if uploaded_file is not None')
 
+# 1. Preparar el diccionario de datos
+data_a_copiar = {
+    "cuit": cuit_val,
+    "fecha_iso": "-".join(fecha_val.split("/")[::-1]) if fecha_val else "", # Convierte DD/MM/AAAA a YYYY-MM-DD
+    "ptovta": ptovta,
+    "nro": nrocomp,
+    "total": total_val.replace('.', '').replace(',', '.') # Formato decimal estándar
+}
+
+# 2. Mostrar el JSON para que el usuario lo copie manualmente (es lo más seguro)
+st.subheader("Paso 1: Copia estos datos")
+st.code(json.dumps(data_a_copiar), language="json")
+
+st.subheader("Paso 2: Ve al formulario")
+st.link_button("Ir a Barceló ↗️", "https://validaciones.barcelo.edu.ar/subircomprobantes/index.php")
     # Extracción
     cuit = "".join(re.findall(r'\d+', re.search(r'CUIT[:\s]*[\d\-]+', texto).group(0)))[:11]
     fecha = re.search(r'(\d{2})/(\d{2})/(\d{4})', texto)
