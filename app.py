@@ -6,9 +6,8 @@ import base64
 
 def obtener_nombre_mes(fecha_str):
     meses = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", 
-             "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"]
+              "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"]
     try:
-        # fecha_str viene como AAAA-MM-DD
         indice = int(fecha_str.split("-")[1]) - 1
         return meses[indice]
     except:
@@ -29,7 +28,7 @@ if uploaded_file is not None:
         c_match = re.search(r'CUIT[:\s]*([\d\-]+)', texto)
         cuit = "".join(re.findall(r'\d+', c_match.group(1)))[:11] if c_match else ""
         
-        # 2. FECHA y MES
+        # 2. FECHA (Asegurando formato AAAA-MM-DD para el calendario)
         f_match = re.search(r'(\d{2})/(\d{2})/(\d{4})', texto)
         fecha_iso = f"{f_match.group(3)}-{f_match.group(2)}-{f_match.group(1)}" if f_match else ""
         nombre_mes = obtener_nombre_mes(fecha_iso)
@@ -39,19 +38,17 @@ if uploaded_file is not None:
         ptovta = comp.group(1).lstrip('0') if comp else ""
         nrocomp = comp.group(2) if comp else ""
         
-        # 4. RAZÓN SOCIAL (Intenta buscar líneas antes del CUIT o palabras clave)
-        # Nota: Esto varía según la factura, usaremos un nombre genérico si no se encuentra
+        # 4. RAZÓN SOCIAL (Limpieza para el nombre del archivo)
         rs_match = re.search(r'^(.+)$', texto, re.MULTILINE)
-        razon_social = rs_match.group(1).strip().upper() if rs_match else "PROVEEDOR"
-        razon_social = re.sub(r'[^A-Z0-9 ]', '', razon_social)[:30] # Limpiar símbolos
+        razon_social = re.sub(r'[^A-Z0-9 ]', '', rs_match.group(1).upper())[:25].strip() if rs_match else "PROVEEDOR"
 
-        # 5. TOTAL
-        total_match = re.search(r'(?:Total|Importe Total):\s*\$?\s*([\d\.,]+)', texto, re.IGNORECASE)
-        total = total_match.group(1).replace('.', '').replace(',', '.') if total_match else ""
+        # 5. TOTAL (Asegurando punto decimal para el formulario)
+        # Busca el total al final del documento (como en tu imagen de El Faro)
+        total_match = re.findall(r'total[:\s]*\$?\s*([\d\.,]+)', texto, re.IGNORECASE)
+        monto_final = total_match[-1].replace('.', '').replace(',', '.') if total_match else ""
 
-        # GENERAR NUEVO NOMBRE DE ARCHIVO
-        # Formato: RAZON SOCIAL_NUMERO DE FACTURA_MES DE FACTURA
-        nuevo_nombre = f"{razon_social}_{nrocomp}_{nombre_mes}.pdf".replace(" ", "_")
+        # NUEVO NOMBRE: RAZON SOCIAL_PTO-NRO_MES
+        nuevo_nombre = f"{razon_social}_{ptovta}-{nrocomp}_{nombre_mes}.pdf".replace(" ", "_")
 
         pdf_base64 = base64.b64encode(file_bytes).decode('utf-8')
 
@@ -60,14 +57,14 @@ if uploaded_file is not None:
             "fecha": fecha_iso, 
             "ptovta": ptovta, 
             "nro": nrocomp, 
-            "total": total,
+            "total": monto_final,
             "pdf_name": nuevo_nombre,
             "pdf_data": pdf_base64
         }
         
-        st.success(f"✅ Procesado: {nuevo_nombre}")
+        st.success(f"✅ Archivo listo: {nuevo_nombre}")
         st.code(json.dumps(data), language="json")
-        st.info("Copia el código y usa tu marcador en Barceló.")
+        st.info("Copia el código y usa tu marcador en la web de Barceló.")
         
     except Exception as e:
         st.error(f"Error: {e}")
