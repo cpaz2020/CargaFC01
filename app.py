@@ -28,38 +28,31 @@ if uploaded_file is not None:
         c_match = re.search(r'CUIT[:\s]*([\d\-]+)', texto)
         cuit = "".join(re.findall(r'\d+', c_match.group(1)))[:11] if c_match else ""
         
-        # 2. FECHA (Asegurando formato AAAA-MM-DD para el calendario)
+        # 2. FECHA
         f_match = re.search(r'(\d{2})/(\d{2})/(\d{4})', texto)
         fecha_iso = f"{f_match.group(3)}-{f_match.group(2)}-{f_match.group(1)}" if f_match else ""
         nombre_mes = obtener_nombre_mes(fecha_iso)
         
-        # 3. COMPROBANTE (Pto Vta y Número)
-        comp = re.search(r'(\d{1,5})\s?-\s?(\d{8})', texto)
-        ptovta = comp.group(1).lstrip('0') if comp else ""
-        nrocomp = comp.group(2) if comp else ""
+        # 3. COMPROBANTE con relleno de ceros (zfill)
+        comp = re.search(r'(\d{1,5})\s?-\s?(\d{1,8})', texto)
+        ptovta = comp.group(1).zfill(4) if comp else "" # Siempre 4 dígitos
+        nrocomp = comp.group(2).zfill(8) if comp else "" # Siempre 8 dígitos
         
-        # 4. RAZÓN SOCIAL (Limpieza para el nombre del archivo)
+        # 4. RAZÓN SOCIAL
         rs_match = re.search(r'^(.+)$', texto, re.MULTILINE)
         razon_social = re.sub(r'[^A-Z0-9 ]', '', rs_match.group(1).upper())[:25].strip() if rs_match else "PROVEEDOR"
 
-        # 5. TOTAL (Asegurando punto decimal para el formulario)
-        # Busca el total al final del documento (como en tu imagen de El Faro)
+        # 5. TOTAL
         total_match = re.findall(r'total[:\s]*\$?\s*([\d\.,]+)', texto, re.IGNORECASE)
         monto_final = total_match[-1].replace('.', '').replace(',', '.') if total_match else ""
 
-        # NUEVO NOMBRE: RAZON SOCIAL_PTO-NRO_MES
+        # Nombre del PDF: RAZON_PTO-NRO_MES.pdf
         nuevo_nombre = f"{razon_social}_{ptovta}-{nrocomp}_{nombre_mes}.pdf".replace(" ", "_")
-
         pdf_base64 = base64.b64encode(file_bytes).decode('utf-8')
 
         data = {
-            "cuit": cuit, 
-            "fecha": fecha_iso, 
-            "ptovta": ptovta, 
-            "nro": nrocomp, 
-            "total": monto_final,
-            "pdf_name": nuevo_nombre,
-            "pdf_data": pdf_base64
+            "cuit": cuit, "fecha": fecha_iso, "ptovta": ptovta, 
+            "nro": nrocomp, "total": monto_final, "pdf_name": nuevo_nombre, "pdf_data": pdf_base64
         }
         
         st.success(f"✅ Archivo listo: {nuevo_nombre}")
